@@ -16,9 +16,12 @@
 
 #pragma once
 
+#include <android-base/macros.h>
 #include <vendor/qti/hardware/cryptfshw/1.0/ICryptfsHw.h>
-#include <hidl/MQDescriptor.h>
-#include <hidl/Status.h>
+
+#include <memory>
+
+#include "ICryptfsHwController.h"
 
 namespace vendor {
 namespace qti {
@@ -27,27 +30,26 @@ namespace cryptfshw {
 namespace V1_0 {
 namespace implementation {
 
-using ::android::hardware::hidl_array;
-using ::android::hardware::hidl_memory;
 using ::android::hardware::hidl_string;
-using ::android::hardware::hidl_vec;
 using ::android::hardware::Return;
-using ::android::hardware::Void;
-using ::android::sp;
 
-struct CryptfsHw : public ICryptfsHw {
+class CryptfsHw : public ICryptfsHw {
+  public:
+    CryptfsHw(std::unique_ptr<ICryptfsHwController> controller);
+
     // Methods from ::vendor::qti::hardware::cryptfshw::V1_0::ICryptfsHw follow.
     Return<int32_t> setIceParam(uint32_t flag) override;
     Return<int32_t> setKey(const hidl_string& passwd, const hidl_string& enc_mode) override;
-    Return<int32_t> updateKey(const hidl_string& oldpw, const hidl_string& newpw, const hidl_string& enc_mode) override;
+    Return<int32_t> updateKey(const hidl_string& oldpw, const hidl_string& newpw,
+                              const hidl_string& enc_mode) override;
     Return<int32_t> clearKey() override;
 
-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+  private:
+    std::unique_ptr<ICryptfsHwController> controller_;
+    int usage_;
 
+    DISALLOW_IMPLICIT_CONSTRUCTORS(CryptfsHw);
 };
-
-// FIXME: most likely delete, this is only for passthrough implementations
-// extern "C" ICryptfsHw* HIDL_FETCH_ICryptfsHw(const char* name);
 
 }  // namespace implementation
 }  // namespace V1_0
