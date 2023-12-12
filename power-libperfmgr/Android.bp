@@ -45,6 +45,8 @@ cc_binary {
     ],
     srcs: [
         "aidl/BackgroundWorker.cpp",
+        "aidl/ChannelGroup.cpp",
+        "aidl/ChannelManager.cpp",
         "aidl/GpuCalculationHelpers.cpp",
         "aidl/GpuCapacityNode.cpp",
         "aidl/service.cpp",
@@ -55,6 +57,7 @@ cc_binary {
         "aidl/PowerSessionManager.cpp",
         "aidl/UClampVoter.cpp",
         "aidl/SessionRecords.cpp",
+        "aidl/SessionChannel.cpp",
         "aidl/SessionTaskMap.cpp",
         "aidl/SessionValueEntry.cpp",
     ],
