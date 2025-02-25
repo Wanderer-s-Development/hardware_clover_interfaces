@@ -34,6 +34,7 @@
 #include "GpuCalculationHelpers.h"
 #include "tests/mocks/MockHintManager.h"
 #include "tests/mocks/MockPowerSessionManager.h"
+#include "utils/TgidTypeChecker.h"
 
 namespace aidl {
 namespace google {
@@ -58,8 +59,6 @@ static inline int64_t ns_to_100us(int64_t ns) {
     return ns / 100000;
 }
 
-static const char systemSessionCheckPath[] = "/proc/vendor_sched/is_tgid_system_ui";
-static const bool systemSessionCheckNodeExist = access(systemSessionCheckPath, W_OK) == 0;
 static constexpr int32_t kTargetDurationChangeThreshold = 30;  // Percentage change threshold
 
 }  // namespace
@@ -144,37 +143,15 @@ int64_t PowerHintSession<HintManagerT, PowerSessionManagerT>::convertWorkDuratio
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
-ProcessTag PowerHintSession<HintManagerT, PowerSessionManagerT>::getProcessTag(int32_t tgid) {
-    if (!systemSessionCheckNodeExist) {
-        ALOGD("Vendor system session checking node doesn't exist");
-        return ProcessTag::DEFAULT;
-    }
-
-    int flags = O_WRONLY | O_TRUNC | O_CLOEXEC;
-    ::android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(systemSessionCheckPath, flags)));
-    if (fd == -1) {
-        ALOGW("Can't open system session checking node %s", systemSessionCheckPath);
-        return ProcessTag::DEFAULT;
-    }
-    // The file-write return status is true if the task belongs to systemUI or Launcher. Other task
-    // or invalid tgid will return a false value.
-    auto stat = ::android::base::WriteStringToFd(std::to_string(tgid), fd);
-    ALOGD("System session checking result: %d - %d", tgid, stat);
-    if (stat) {
-        return ProcessTag::SYSTEM_UI;
-    } else {
-        return ProcessTag::DEFAULT;
-    }
-}
-
-template <class HintManagerT, class PowerSessionManagerT>
 PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
         int32_t tgid, int32_t uid, const std::vector<int32_t> &threadIds, int64_t durationNs,
         SessionTag tag)
     : mPSManager(PowerSessionManagerT::getInstance()),
       mSessionId(++sSessionIDCounter),
       mSessTag(tag),
-      mProcTag(getProcessTag(tgid)),
+      mProcTag(TgidTypeChecker::getInstance()->isValid()
+                       ? TgidTypeChecker::getInstance()->getProcessTag(tgid)
+                       : ProcessTag::DEFAULT),
       mIdString(StringPrintf("%" PRId32 "-%" PRId32 "-%" PRId64 "-%s-%" PRId32, tgid, uid,
                              mSessionId, toString(tag).c_str(), static_cast<int32_t>(mProcTag))),
       mDescriptor(std::make_shared<AppHintDesc>(mSessionId, tgid, uid, threadIds, tag, mProcTag,

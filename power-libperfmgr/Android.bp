@@ -69,6 +69,7 @@ cc_binary {
         "aidl/SessionValueEntry.cpp",
         "aidl/TaskRampupMultNode.cpp",
         "aidl/utils/ThermalStateListener.cpp",
+        "aidl/utils/TgidTypeChecker.cpp",
     ],
     cpp_std: "gnu++20",
 }
