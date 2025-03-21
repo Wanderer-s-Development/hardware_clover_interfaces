@@ -30,6 +30,7 @@
 #include "AppDescriptorTrace.h"
 #include "AppHintDesc.h"
 #include "tests/mocks/MockHintManager.h"
+#include "utils/ThermalStateListener.h"
 
 namespace aidl {
 namespace google {
@@ -120,6 +121,15 @@ void PowerSessionManager<HintManagerT>::addPowerSession(
     sve.votes->add(
             static_cast<std::underlying_type_t<AdpfVoteType>>(AdpfVoteType::CPU_VOTE_DEFAULT),
             CpuVote(false, timeNow, sessionDescriptor->targetNs, kUclampMin, kUclampMax));
+    sve.sessFrameMetrics.uid = sessionDescriptor->uid;
+    sve.sessFrameMetrics.metricStartTime = std::chrono::system_clock::now();
+    sve.sessFrameMetrics.thermalThrotStat =
+            ThermalStateListener::getInstance()->getThermalThrotSev();
+    if (sessionDescriptor->tag == SessionTag::SURFACEFLINGER) {
+        sve.sessFrameMetrics.frameTimelineType = FrameTimelineType::SURFACEFLINGER;
+        sve.sessFrameMetrics.scenarioType =
+                mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT;
+    }
 
     bool addedRes = false;
     {
@@ -224,6 +234,15 @@ void PowerSessionManager<HintManagerT>::dumpToFd(int fd) {
                 dump_buf << "]\n";
             });
     dump_buf << "========== End PowerSessionManager ADPF list ==========\n";
+
+    dump_buf << "========== Begin power session metrics list ==========\n";
+    dump_buf << "--- Ongoing sessions' metrics ---\n";
+    mSessionTaskMap.forEachSessionValTasks(
+            [&](auto /* sessionId */, const auto &sessionVal, const auto & /* tasks */) {
+                sessionVal.sessFrameMetrics.dump(dump_buf);
+            });
+    // TODO(guibing) dump the cached finished session metrics here.
+    dump_buf << "========== End power session metrics list ==========\n";
     if (!::android::base::WriteStringToFd(dump_buf.str(), fd)) {
         ALOGE("Failed to dump one of session list to fd:%d", fd);
     }
@@ -572,15 +591,25 @@ void PowerSessionManager<HintManagerT>::clear() {
 }
 
 template <class HintManagerT>
-void PowerSessionManager<HintManagerT>::updateFrameBuckets(int64_t sessionId,
-                                                           const FrameBuckets &lastReportedFrames) {
+void PowerSessionManager<HintManagerT>::updateFrameMetrics(
+        int64_t sessionId, const FrameTimingMetrics &lastReportedFrames) {
     std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
     auto sessValPtr = mSessionTaskMap.findSession(sessionId);
     if (nullptr == sessValPtr) {
         return;
     }
 
-    sessValPtr->sessFrameBuckets.addUpNewFrames(lastReportedFrames);
+    sessValPtr->sessFrameBuckets.addUpNewFrames(lastReportedFrames.framesInBuckets);
+    switch (sessValPtr->sessFrameMetrics.scenarioType) {
+        case ScenarioType::GAME:
+            sessValPtr->sessFrameMetrics.addNewFrames(lastReportedFrames.gameFrameMetrics);
+            break;
+        case ScenarioType::DEFAULT:
+            sessValPtr->sessFrameMetrics.addNewFrames(lastReportedFrames.framesInBuckets);
+            break;
+        default:
+            ALOGW("Unknown scenarioType during updateFrameMetrics.");
+    }
 }
 
 template <class HintManagerT>

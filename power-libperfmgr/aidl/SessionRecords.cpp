@@ -36,8 +36,8 @@ SessionRecords::SessionRecords(const int32_t maxNumOfRecords, const double jankC
 
 void SessionRecords::addReportedDurations(const std::vector<WorkDuration> &actualDurationsNs,
                                           int64_t targetDurationNs,
-                                          FrameBuckets &newFramesInBuckets,
-                                          bool computeFPSJitters) {
+                                          FrameTimingMetrics &newFrameMetrics,
+                                          bool computeGameMetrics) {
     for (auto &duration : actualDurationsNs) {
         int32_t totalDurationUs = duration.durationNanos / 1000;
 
@@ -67,6 +67,7 @@ void SessionRecords::addReportedDurations(const std::vector<WorkDuration> &actua
             }
         }
 
+        mPreLastRecordIndex = mLatestRecordIndex;
         mLatestRecordIndex = (mLatestRecordIndex + 1) % kMaxNumOfRecords;
 
         // Track start delay
@@ -81,7 +82,7 @@ void SessionRecords::addReportedDurations(const std::vector<WorkDuration> &actua
         // A frame is evaluated as FPS jitter if its startInterval is not less
         // than previous three frames' average startIntervals.
         bool FPSJitter = false;
-        if (computeFPSJitters) {
+        if (computeGameMetrics) {
             if (mAddedFramesForFPSCheck < kTotalFramesForFPSCheck) {
                 if (startIntervalUs > 0) {
                     mLatestStartIntervalSumUs += startIntervalUs;
@@ -111,10 +112,17 @@ void SessionRecords::addReportedDurations(const std::vector<WorkDuration> &actua
         if (cycleMissed) {
             mNumOfMissedCycles++;
         }
-        updateFrameBuckets(totalDurationUs, cycleMissed, newFramesInBuckets);
+        updateFrameBuckets(totalDurationUs, cycleMissed, newFrameMetrics.framesInBuckets);
+        if (computeGameMetrics) {
+            /**
+             * Currently SF frame intervals under "game mode" are used to track the game's FPS.
+             * If the Android platform can pass the timestamps of Game's major layers, that would
+             * be more precise in the long term.
+             */
+            updateGameMetrics(startIntervalUs, newFrameMetrics.gameFrameMetrics);
+        }
 
-        // Pop out the indexes that their related values are not greater than the
-        // latest one.
+        // Pop out the indexes that their related values are not greater than the latest one.
         while (!mRecordsIndQueue.empty() &&
                (mRecords[mRecordsIndQueue.back()].totalDurationUs <= totalDurationUs)) {
             mRecordsIndQueue.pop_back();
@@ -200,6 +208,21 @@ void SessionRecords::updateFrameBuckets(int32_t frameDurationUs, bool isJankFram
     } else if (frameDurationUs >= 100000) {
         framesInBuckets.numOfFramesOver100ms++;
     }
+}
+
+void SessionRecords::updateGameMetrics(int32_t frameIntervalUs, GameFrameMetrics &gameMetrics) {
+    if (frameIntervalUs <= 0) {
+        return;
+    }
+    auto frameIntervalMs = frameIntervalUs / 1000;
+    gameMetrics.frameTimingMs.push_back(frameIntervalMs);
+
+    if (mNumOfFrames > 2) {
+        gameMetrics.frameTimingDeltaMs.push_back(
+                std::abs(frameIntervalUs - mRecords[mPreLastRecordIndex].startIntervalUs) / 1000);
+    }
+    gameMetrics.totalFrameTimeMs += frameIntervalMs;
+    gameMetrics.numOfFrames++;
 }
 
 }  // namespace pixel

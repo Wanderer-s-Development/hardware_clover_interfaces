@@ -79,7 +79,7 @@ bool MetricUploader::reportAtom(const int32_t &atomId, std::vector<VendorAtomVal
     return true;
 }
 
-bool MetricUploader::uploadMetrics(const SessionJankStatsWithThermal &sessMetrics) {
+bool MetricUploader::uploadMetrics(const SessionMetrics &sessMetrics) {
     // TODO(guibing): Store the sessMetrics into the format of the metric atom
     // and then call "reportAtom" to upload them.
     std::string sessMetricDescriptor = std::string(toString(sessMetrics.scenarioType)) + "-" +

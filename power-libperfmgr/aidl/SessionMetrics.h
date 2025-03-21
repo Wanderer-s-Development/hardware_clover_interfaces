@@ -16,6 +16,12 @@
 
 #pragma once
 
+#include <aidl/android/hardware/thermal/IThermal.h>
+
+#include <chrono>
+#include <ctime>
+#include <iostream>
+
 namespace aidl {
 namespace google {
 namespace hardware {
@@ -23,10 +29,12 @@ namespace power {
 namespace impl {
 namespace pixel {
 
+using ::aidl::android::hardware::thermal::ThrottlingSeverity;
+
 /**
- * Put jank frames into buckets. The "jank" evaluation is reusing the session records jank
- * evaluation logic while here only counts the frames over 17ms. Though the current jank
- * evaluation is not exactly right for every frame at the moment, it can still provide a
+ * Put non-game "APP" jank frames into buckets. The "jank" evaluation is reusing the session
+ * records jank evaluation logic while here only counts the frames over 17ms. Though the current
+ * jank evaluation is not exactly right for every frame at the moment, it can still provide a
  * a good sense of session's jank status. When we have more precise timeline from platform side
  * the jank evaluation logic could be updated.
  */
@@ -80,6 +88,23 @@ struct FrameBuckets {
     }
 };
 
+struct GameFrameMetrics {
+    // Histogram for frame time distribution for computing FPS distribution
+    std::vector<uint32_t> frameTimingMs;
+    // Histogram for frame time deltas for identifying jitters distribution
+    std::vector<uint32_t> frameTimingDeltaMs;
+    // Total time of all frames to compute the total average FPS
+    uint64_t totalFrameTimeMs{0};
+    uint32_t numOfFrames{0};
+};
+
+struct FrameTimingMetrics {
+    // Non-game APP jank frames in buckets
+    FrameBuckets framesInBuckets;
+    // Game frame timing info.
+    GameFrameMetrics gameFrameMetrics;
+};
+
 enum class ScenarioType : int32_t { DEFAULT = 0, GAME };
 
 constexpr const char *toString(ScenarioType scenType) {
@@ -106,11 +131,35 @@ constexpr const char *toString(FrameTimelineType timelineType) {
     }
 }
 
-struct SessionJankStatsWithThermal {
+/**
+ * Session's frame statistics that be used to construct the Pixel perf atoms and be uploaded
+ * to the server.
+ */
+struct SessionMetrics {
+  public:
+    // App uid when available
     std::optional<int32_t> uid;
-    ScenarioType scenarioType;
-    FrameTimelineType frameTimelineType;
-    // TODO(guibing) add more detailed definition of the jank metrics.
+    // Device scenario when collecting the metric, e.g. Game/Android Auto
+    ScenarioType scenarioType{ScenarioType::DEFAULT};
+    // Source of the frame timeline. Mostly of them comes from app itself,
+    // while game metric session currently uses the SF's frame timeline.
+    FrameTimelineType frameTimelineType{FrameTimelineType::APP};
+    // Metric session start and end time
+    std::chrono::time_point<std::chrono::system_clock> metricStartTime;
+    std::chrono::time_point<std::chrono::system_clock> metricEndTime;
+    bool metricSessionCompleted{false};
+    // Thermal throttling status
+    ThrottlingSeverity thermalThrotStat{ThrottlingSeverity::NONE};
+    uint32_t totalFrameNumber{0};
+    // Performance metrics for game and non-game APP.
+    std::optional<FrameBuckets> appFrameMetrics;
+    std::optional<GameFrameMetrics> gameFrameMetrics;
+
+    void addNewFrames(const GameFrameMetrics &newFrameMetrics);
+    void addNewFrames(const FrameBuckets &newFrameMetrics);
+    void resetMetric(ThrottlingSeverity newThermalState,
+                     ScenarioType newScenario = ScenarioType::DEFAULT);
+    std::ostream &dump(std::ostream &os) const;
 };
 
 }  // namespace pixel

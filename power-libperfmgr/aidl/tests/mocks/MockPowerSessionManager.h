@@ -73,8 +73,8 @@ class MockPowerSessionManager {
                 ());
     MOCK_METHOD(bool, getGameModeEnableState, (), ());
     MOCK_METHOD(bool, hasValidTaskRampupMultNode, (), ());
-    MOCK_METHOD(void, updateFrameBuckets,
-                (int64_t sessionId, const impl::pixel::FrameBuckets &lastReportedFrames), ());
+    MOCK_METHOD(void, updateFrameMetrics,
+                (int64_t sessionId, const impl::pixel::FrameTimingMetrics &lastReportedFrames), ());
     MOCK_METHOD(void, updateRampupBoostMode,
                 (int64_t sessionId, impl::pixel::SessionJankyLevel jankyLevel,
                  int32_t defaultRampupVal, int32_t highRampupVal),

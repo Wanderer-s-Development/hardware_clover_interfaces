@@ -26,6 +26,7 @@
 #include "AppHintDesc.h"
 #include "BackgroundWorker.h"
 #include "GpuCapacityNode.h"
+#include "SessionMetrics.h"
 #include "SessionTaskMap.h"
 #include "TaskRampupMultNode.h"
 
@@ -76,7 +77,7 @@ class PowerSessionManager : public Immobile {
 
     void updateHboostStatistics(int64_t sessionId, SessionJankyLevel jankyLevel,
                                 int32_t numOfFrames);
-    void updateFrameBuckets(int64_t sessionId, const FrameBuckets &lastReportedFrames);
+    void updateFrameMetrics(int64_t sessionId, const FrameTimingMetrics &lastReportedFrames);
     bool hasValidTaskRampupMultNode();
     void updateRampupBoostMode(int64_t sessionId, SessionJankyLevel jankyLevel,
                                int32_t defaultRampupVal, int32_t highRampupVal);
@@ -144,6 +145,8 @@ class PowerSessionManager : public Immobile {
 
     std::atomic<bool> mGameModeEnabled{false};
     std::shared_ptr<TaskRampupMultNode> mTaskRampupMultNode;
+
+    std::vector<SessionMetrics> mCollectedSessionMetrics GUARDED_BY(mSessionTaskMapMutex);
 };
 
 }  // namespace pixel

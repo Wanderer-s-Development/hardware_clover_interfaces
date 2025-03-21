@@ -40,7 +40,7 @@ class MetricUploader {
     MetricUploader &operator=(MetricUploader &&) = delete;
 
     bool init();
-    bool uploadMetrics(const SessionJankStatsWithThermal &sessMetrics);
+    bool uploadMetrics(const SessionMetrics &sessMetrics);
 
     // Singleton
     static MetricUploader *getInstance() {
