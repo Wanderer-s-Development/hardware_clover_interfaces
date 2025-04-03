@@ -466,6 +466,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
                 mSessTag == SessionTag::SURFACEFLINGER && mPSManager->getGameModeEnableState());
         mPSManager->updateHboostStatistics(mSessionId, mJankyLevel, actualDurations.size());
         mPSManager->updateFrameMetrics(mSessionId, newFrameMetrics);
+        mPSManager->updateCollectedSessionMetrics(mSessionId);
         updateHeuristicBoost();
         if (heurRampupEnabled && mPSManager->hasValidTaskRampupMultNode()) {
             mPSManager->updateRampupBoostMode(mSessionId, mJankyLevel,

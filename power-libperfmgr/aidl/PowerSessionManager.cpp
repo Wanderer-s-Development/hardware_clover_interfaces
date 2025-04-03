@@ -158,6 +158,13 @@ void PowerSessionManager<HintManagerT>::removePowerSession(int64_t sessionId) {
         // Wait till end to remove session because it needs to be around for apply U clamp
         // to work above since applying the uclamp needs a valid session id
         std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
+
+        // collect the session metric before close the session
+        auto sessValPtr = mSessionTaskMap.findSession(sessionId);
+        sessValPtr->sessFrameMetrics.metricEndTime = std::chrono::system_clock::now();
+        sessValPtr->sessFrameMetrics.metricSessionCompleted = true;
+        mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics);
+
         mSessionTaskMap.replace(sessionId, {}, &addedThreads, &removedThreads);
         mSessionTaskMap.remove(sessionId);
     }
@@ -241,7 +248,10 @@ void PowerSessionManager<HintManagerT>::dumpToFd(int fd) {
             [&](auto /* sessionId */, const auto &sessionVal, const auto & /* tasks */) {
                 sessionVal.sessFrameMetrics.dump(dump_buf);
             });
-    // TODO(guibing) dump the cached finished session metrics here.
+    dump_buf << "\n--- Cached sessions' metrics ---\n";
+    for (const auto &met : mCollectedSessionMetrics) {
+        met.dump(dump_buf);
+    }
     dump_buf << "========== End power session metrics list ==========\n";
     if (!::android::base::WriteStringToFd(dump_buf.str(), fd)) {
         ALOGE("Failed to dump one of session list to fd:%d", fd);
@@ -269,6 +279,14 @@ void PowerSessionManager<HintManagerT>::pause(int64_t sessionId) {
             // default low value when session gets paused.
             voteRampupBoostLocked(sessionId, false, kBGRampupVal, kBGRampupVal);
         }
+
+        // collect the session metric
+        sessValPtr->sessFrameMetrics.metricEndTime = std::chrono::system_clock::now();
+        sessValPtr->sessFrameMetrics.metricSessionCompleted = true;
+        mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics);
+        sessValPtr->sessFrameMetrics.resetMetric(
+                ThermalStateListener::getInstance()->getThermalThrotSev(),
+                mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT);
     }
     applyCpuAndGpuVotes(sessionId, std::chrono::steady_clock::now());
 }
@@ -288,6 +306,9 @@ void PowerSessionManager<HintManagerT>::resume(int64_t sessionId) {
             return;
         }
         sessValPtr->isActive = true;
+        sessValPtr->sessFrameMetrics.resetMetric(
+                ThermalStateListener::getInstance()->getThermalThrotSev(),
+                mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT);
     }
     applyCpuAndGpuVotes(sessionId, std::chrono::steady_clock::now());
 }
@@ -734,6 +755,38 @@ void PowerSessionManager<HintManagerT>::updateRampupBoostMode(int64_t sessionId,
         voteRampupBoostLocked(sessionId, sessValPtr->rampupBoostActive, defaultRampupVal,
                               highRampupVal);
     }
+}
+
+template <class HintManagerT>
+bool PowerSessionManager<HintManagerT>::updateCollectedSessionMetrics(int64_t sessionId) {
+    std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
+    auto sessValPtr = mSessionTaskMap.findSession(sessionId);
+    if (nullptr == sessValPtr) {
+        return false;
+    }
+
+    bool needNewMetricSession = false;
+    auto newScenarioType = mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT;
+    if (sessValPtr->tag == SessionTag::SURFACEFLINGER) {
+        if (sessValPtr->sessFrameMetrics.scenarioType != newScenarioType) {
+            needNewMetricSession = true;
+        }
+    }
+
+    auto newThermalThrotSev = ThermalStateListener::getInstance()->getThermalThrotSev();
+    if (sessValPtr->sessFrameMetrics.thermalThrotStat != newThermalThrotSev) {
+        needNewMetricSession = true;
+    }
+
+    if (needNewMetricSession) {
+        sessValPtr->sessFrameMetrics.metricEndTime = std::chrono::system_clock::now();
+        sessValPtr->sessFrameMetrics.metricSessionCompleted = true;
+        mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics);
+        sessValPtr->sessFrameMetrics.resetMetric(newThermalThrotSev, newScenarioType);
+        return true;
+    }
+
+    return false;
 }
 
 template class PowerSessionManager<>;

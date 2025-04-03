@@ -96,6 +96,7 @@ class PowerSessionManager : public Immobile {
     void clear();
     std::shared_ptr<void> getSession(int64_t sessionId);
     bool getGameModeEnableState();
+    bool updateCollectedSessionMetrics(int64_t sessionId);
 
   private:
     std::optional<bool> isAnyAppSessionActive();
