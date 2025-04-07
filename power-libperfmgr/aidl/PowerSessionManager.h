@@ -50,7 +50,7 @@ class PowerSessionManager : public Immobile {
     void addPowerSession(const std::string &idString,
                          const std::shared_ptr<AppHintDesc> &sessionDescriptor,
                          const std::shared_ptr<AppDescriptorTrace> &sessionTrace,
-                         const std::vector<int32_t> &threadIds);
+                         const bool enableMetricCollection, const std::vector<int32_t> &threadIds);
     void removePowerSession(int64_t sessionId);
     // Replace current threads in session with threadIds
     void setThreadsFromPowerSession(int64_t sessionId, const std::vector<int32_t> &threadIds);

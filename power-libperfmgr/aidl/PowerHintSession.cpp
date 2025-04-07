@@ -160,6 +160,7 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
       mAdpfProfile(mProcTag != ProcessTag::DEFAULT
                            ? HintManager::GetInstance()->GetAdpfProfile(toString(mProcTag))
                            : HintManager::GetInstance()->GetAdpfProfile(toString(mSessTag))),
+      mEnableMetricCollection(mProcTag != ProcessTag::SYSTEM_UI),
       mOnAdpfUpdate(
               [this](const std::shared_ptr<AdpfConfig> config) { this->setAdpfProfile(config); }),
       mSessionRecords(getAdpfProfile()->mHeuristicBoostOn.has_value() &&
@@ -179,7 +180,8 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
     }
 
     mLastUpdatedTime = std::chrono::steady_clock::now();
-    mPSManager->addPowerSession(mIdString, mDescriptor, mAppDescriptorTrace, threadIds);
+    mPSManager->addPowerSession(mIdString, mDescriptor, mAppDescriptorTrace,
+                                mEnableMetricCollection, threadIds);
     // init boost
     auto adpfConfig = getAdpfProfile();
     mPSManager->voteSet(

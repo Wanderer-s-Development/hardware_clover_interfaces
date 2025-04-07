@@ -37,7 +37,7 @@ class MockPowerSessionManager {
                 (const std::string &idString,
                  const std::shared_ptr<impl::pixel::AppHintDesc> &sessionDescriptor,
                  const std::shared_ptr<impl::pixel::AppDescriptorTrace> &sessionTrace,
-                 const std::vector<int32_t> &threadIds),
+                 const bool enableMetricCollection, const std::vector<int32_t> &threadIds),
                 ());
     MOCK_METHOD(void, removePowerSession, (int64_t sessionId), ());
     MOCK_METHOD(void, setThreadsFromPowerSession,

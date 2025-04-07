@@ -41,7 +41,10 @@ namespace pixel {
 
 constexpr char kGameModeName[] = "GAME";
 constexpr int32_t kBGRampupVal = 1;
-
+// The frame number threshold to decide whether upload a metric session.
+// It's intended to avoid uploading the metric session with just few frames.
+static constexpr int32_t kNumOfFramesThreshold = 20;
+static constexpr int32_t kMaxNumOfCachedSessionMetrics = 100;
 namespace {
 /* there is no glibc or bionic wrapper */
 struct sched_attr {
@@ -99,7 +102,7 @@ bool PowerSessionManager<HintManagerT>::getGameModeEnableState() {
 template <class HintManagerT>
 void PowerSessionManager<HintManagerT>::addPowerSession(
         const std::string &idString, const std::shared_ptr<AppHintDesc> &sessionDescriptor,
-        const std::shared_ptr<AppDescriptorTrace> &sessionTrace,
+        const std::shared_ptr<AppDescriptorTrace> &sessionTrace, const bool enableMetricCollection,
         const std::vector<int32_t> &threadIds) {
     if (!sessionDescriptor) {
         ALOGE("sessionDescriptor is null. PowerSessionManager failed to add power session: %s",
@@ -121,14 +124,17 @@ void PowerSessionManager<HintManagerT>::addPowerSession(
     sve.votes->add(
             static_cast<std::underlying_type_t<AdpfVoteType>>(AdpfVoteType::CPU_VOTE_DEFAULT),
             CpuVote(false, timeNow, sessionDescriptor->targetNs, kUclampMin, kUclampMax));
-    sve.sessFrameMetrics.uid = sessionDescriptor->uid;
-    sve.sessFrameMetrics.metricStartTime = std::chrono::system_clock::now();
-    sve.sessFrameMetrics.thermalThrotStat =
-            ThermalStateListener::getInstance()->getThermalThrotSev();
-    if (sessionDescriptor->tag == SessionTag::SURFACEFLINGER) {
-        sve.sessFrameMetrics.frameTimelineType = FrameTimelineType::SURFACEFLINGER;
-        sve.sessFrameMetrics.scenarioType =
-                mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT;
+
+    if (enableMetricCollection) {
+        SessionMetrics sessMetr;
+        sessMetr.uid = sessionDescriptor->uid;
+        sessMetr.metricStartTime = std::chrono::system_clock::now();
+        sessMetr.thermalThrotStat = ThermalStateListener::getInstance()->getThermalThrotSev();
+        if (sessionDescriptor->tag == SessionTag::SURFACEFLINGER) {
+            sessMetr.frameTimelineType = FrameTimelineType::SURFACEFLINGER;
+            sessMetr.scenarioType = mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT;
+        }
+        sve.sessFrameMetrics = sessMetr;
     }
 
     bool addedRes = false;
@@ -161,9 +167,14 @@ void PowerSessionManager<HintManagerT>::removePowerSession(int64_t sessionId) {
 
         // collect the session metric before close the session
         auto sessValPtr = mSessionTaskMap.findSession(sessionId);
-        sessValPtr->sessFrameMetrics.metricEndTime = std::chrono::system_clock::now();
-        sessValPtr->sessFrameMetrics.metricSessionCompleted = true;
-        mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics);
+        if (sessValPtr->sessFrameMetrics) {
+            sessValPtr->sessFrameMetrics.value().metricEndTime = std::chrono::system_clock::now();
+            sessValPtr->sessFrameMetrics.value().metricSessionCompleted = true;
+            if (sessValPtr->sessFrameMetrics.value().totalFrameNumber >= kNumOfFramesThreshold &&
+                mCollectedSessionMetrics.size() < kMaxNumOfCachedSessionMetrics) {
+                mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics.value());
+            }
+        }
 
         mSessionTaskMap.replace(sessionId, {}, &addedThreads, &removedThreads);
         mSessionTaskMap.remove(sessionId);
@@ -246,7 +257,9 @@ void PowerSessionManager<HintManagerT>::dumpToFd(int fd) {
     dump_buf << "--- Ongoing sessions' metrics ---\n";
     mSessionTaskMap.forEachSessionValTasks(
             [&](auto /* sessionId */, const auto &sessionVal, const auto & /* tasks */) {
-                sessionVal.sessFrameMetrics.dump(dump_buf);
+                if (sessionVal.sessFrameMetrics) {
+                    sessionVal.sessFrameMetrics.value().dump(dump_buf);
+                }
             });
     dump_buf << "\n--- Cached sessions' metrics ---\n";
     for (const auto &met : mCollectedSessionMetrics) {
@@ -281,12 +294,17 @@ void PowerSessionManager<HintManagerT>::pause(int64_t sessionId) {
         }
 
         // collect the session metric
-        sessValPtr->sessFrameMetrics.metricEndTime = std::chrono::system_clock::now();
-        sessValPtr->sessFrameMetrics.metricSessionCompleted = true;
-        mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics);
-        sessValPtr->sessFrameMetrics.resetMetric(
-                ThermalStateListener::getInstance()->getThermalThrotSev(),
-                mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT);
+        if (sessValPtr->sessFrameMetrics) {
+            sessValPtr->sessFrameMetrics.value().metricEndTime = std::chrono::system_clock::now();
+            sessValPtr->sessFrameMetrics.value().metricSessionCompleted = true;
+            if (sessValPtr->sessFrameMetrics.value().totalFrameNumber >= kNumOfFramesThreshold &&
+                mCollectedSessionMetrics.size() < kMaxNumOfCachedSessionMetrics) {
+                mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics.value());
+            }
+            sessValPtr->sessFrameMetrics.value().resetMetric(
+                    ThermalStateListener::getInstance()->getThermalThrotSev(),
+                    mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT);
+        }
     }
     applyCpuAndGpuVotes(sessionId, std::chrono::steady_clock::now());
 }
@@ -306,9 +324,11 @@ void PowerSessionManager<HintManagerT>::resume(int64_t sessionId) {
             return;
         }
         sessValPtr->isActive = true;
-        sessValPtr->sessFrameMetrics.resetMetric(
-                ThermalStateListener::getInstance()->getThermalThrotSev(),
-                mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT);
+        if (sessValPtr->sessFrameMetrics) {
+            sessValPtr->sessFrameMetrics.value().resetMetric(
+                    ThermalStateListener::getInstance()->getThermalThrotSev(),
+                    mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT);
+        }
     }
     applyCpuAndGpuVotes(sessionId, std::chrono::steady_clock::now());
 }
@@ -621,15 +641,19 @@ void PowerSessionManager<HintManagerT>::updateFrameMetrics(
     }
 
     sessValPtr->sessFrameBuckets.addUpNewFrames(lastReportedFrames.framesInBuckets);
-    switch (sessValPtr->sessFrameMetrics.scenarioType) {
-        case ScenarioType::GAME:
-            sessValPtr->sessFrameMetrics.addNewFrames(lastReportedFrames.gameFrameMetrics);
-            break;
-        case ScenarioType::DEFAULT:
-            sessValPtr->sessFrameMetrics.addNewFrames(lastReportedFrames.framesInBuckets);
-            break;
-        default:
-            ALOGW("Unknown scenarioType during updateFrameMetrics.");
+    if (sessValPtr->sessFrameMetrics) {
+        switch (sessValPtr->sessFrameMetrics.value().scenarioType) {
+            case ScenarioType::GAME:
+                sessValPtr->sessFrameMetrics.value().addNewFrames(
+                        lastReportedFrames.gameFrameMetrics);
+                break;
+            case ScenarioType::DEFAULT:
+                sessValPtr->sessFrameMetrics.value().addNewFrames(
+                        lastReportedFrames.framesInBuckets);
+                break;
+            default:
+                ALOGW("Unknown scenarioType during updateFrameMetrics.");
+        }
     }
 }
 
@@ -761,28 +785,31 @@ template <class HintManagerT>
 bool PowerSessionManager<HintManagerT>::updateCollectedSessionMetrics(int64_t sessionId) {
     std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
     auto sessValPtr = mSessionTaskMap.findSession(sessionId);
-    if (nullptr == sessValPtr) {
+    if (nullptr == sessValPtr || !sessValPtr->sessFrameMetrics) {
         return false;
     }
 
     bool needNewMetricSession = false;
     auto newScenarioType = mGameModeEnabled ? ScenarioType::GAME : ScenarioType::DEFAULT;
     if (sessValPtr->tag == SessionTag::SURFACEFLINGER) {
-        if (sessValPtr->sessFrameMetrics.scenarioType != newScenarioType) {
+        if (sessValPtr->sessFrameMetrics.value().scenarioType != newScenarioType) {
             needNewMetricSession = true;
         }
     }
 
     auto newThermalThrotSev = ThermalStateListener::getInstance()->getThermalThrotSev();
-    if (sessValPtr->sessFrameMetrics.thermalThrotStat != newThermalThrotSev) {
+    if (sessValPtr->sessFrameMetrics.value().thermalThrotStat != newThermalThrotSev) {
         needNewMetricSession = true;
     }
 
     if (needNewMetricSession) {
-        sessValPtr->sessFrameMetrics.metricEndTime = std::chrono::system_clock::now();
-        sessValPtr->sessFrameMetrics.metricSessionCompleted = true;
-        mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics);
-        sessValPtr->sessFrameMetrics.resetMetric(newThermalThrotSev, newScenarioType);
+        sessValPtr->sessFrameMetrics.value().metricEndTime = std::chrono::system_clock::now();
+        sessValPtr->sessFrameMetrics.value().metricSessionCompleted = true;
+        if (sessValPtr->sessFrameMetrics.value().totalFrameNumber >= kNumOfFramesThreshold &&
+            mCollectedSessionMetrics.size() < kMaxNumOfCachedSessionMetrics) {
+            mCollectedSessionMetrics.push_back(sessValPtr->sessFrameMetrics.value());
+        }
+        sessValPtr->sessFrameMetrics.value().resetMetric(newThermalThrotSev, newScenarioType);
         return true;
     }
 

@@ -113,6 +113,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     // Use the value of the last enum in enum_range +1 as array size
     std::array<bool, enum_size<SessionMode>()> mModes GUARDED_BY(mPowerHintSessionLock){};
     std::shared_ptr<AdpfConfig> mAdpfProfile;
+    const bool mEnableMetricCollection;
     std::function<void(const std::shared_ptr<AdpfConfig>)> mOnAdpfUpdate;
     std::unique_ptr<SessionRecords> mSessionRecords GUARDED_BY(mPowerHintSessionLock) = nullptr;
     bool mHeuristicBoostActive GUARDED_BY(mPowerHintSessionLock){false};
