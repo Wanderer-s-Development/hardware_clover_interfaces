@@ -451,8 +451,8 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
 
     bool hboostEnabled =
             adpfConfig->mHeuristicBoostOn.has_value() && adpfConfig->mHeuristicBoostOn.value();
-    bool heurRampupEnabled =
-            adpfConfig->mHeuristicRampup.has_value() && adpfConfig->mHeuristicRampup.value();
+    bool heurRampupEnabled = adpfConfig->mHeuristicRampup.has_value() &&
+                             adpfConfig->mHeuristicRampup.value() && mProcTag != ProcessTag::CHROME;
 
     if (hboostEnabled) {
         FrameBuckets newFramesInBuckets;
