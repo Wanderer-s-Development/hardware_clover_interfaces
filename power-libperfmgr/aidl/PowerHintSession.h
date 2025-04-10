@@ -78,7 +78,9 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     bool isTimeout() REQUIRES(mPowerHintSessionLock);
     // Is hint session for a user application
     bool isAppSession() REQUIRES(mPowerHintSessionLock);
-    void tryToSendPowerHint(std::string hint);
+    // Try to send the named hint, optionally, with a override duration. If no duration is set,
+    // the hint's default duration applies.
+    void tryToSendPowerHint(std::string hint, std::optional<std::chrono::milliseconds> duration);
     void updatePidControlVariable(int pidControlVariable, bool updateVote = true)
             REQUIRES(mPowerHintSessionLock);
     int64_t convertWorkDurationToBoostByPid(const std::vector<WorkDuration> &actualDurations)

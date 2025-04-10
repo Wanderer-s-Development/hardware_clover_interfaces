@@ -224,12 +224,17 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updatePidControlVaria
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
-void PowerHintSession<HintManagerT, PowerSessionManagerT>::tryToSendPowerHint(std::string hint) {
+void PowerHintSession<HintManagerT, PowerSessionManagerT>::tryToSendPowerHint(
+        std::string hint, std::optional<std::chrono::milliseconds> duration) {
     if (!mSupportedHints[hint].has_value()) {
         mSupportedHints[hint] = HintManagerT::GetInstance()->IsHintSupported(hint);
     }
     if (mSupportedHints[hint].value()) {
-        HintManagerT::GetInstance()->DoHint(hint);
+        if (duration) {
+            HintManagerT::GetInstance()->DoHint(hint, *duration);
+        } else {
+            HintManagerT::GetInstance()->DoHint(hint);
+        }
     }
 }
 
@@ -607,7 +612,16 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::sendHin
     }
     // Don't hold a lock (mPowerHintSession) while DoHint will try to take another
     // lock(NodeLooperThread).
-    tryToSendPowerHint(toString(hint));
+    tryToSendPowerHint(toString(hint), {});
+
+    // TODO(kevindubois): b/411417175 Remove this hint in favor of capacity voting around
+    // GPU_LOAD_UP after all pixel devices support this node.
+    if (hint == SessionHint::GPU_LOAD_UP &&
+        (mSessTag == SessionTag::SURFACEFLINGER ||
+         (mSessTag == SessionTag::SYSUI || mProcTag == ProcessTag::SYSTEM_UI))) {
+        tryToSendPowerHint("EXPENSIVE_RENDERING", 175ms);
+    }
+
     return ndk::ScopedAStatus::ok();
 }
 
