@@ -21,6 +21,7 @@
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_manager.h>
 #include <android/binder_process.h>
+#include <processgroup/processgroup.h>
 #include <perfmgr/HintManager.h>
 
 #include <thread>
@@ -28,7 +29,6 @@
 #include "MetricUploader.h"
 #include "Power.h"
 #include "PowerExt.h"
-#include "PowerSessionManager.h"
 #include "utils/ThermalStateListener.h"
 
 using aidl::google::hardware::power::impl::pixel::MetricUploader;
@@ -46,6 +46,11 @@ int main() {
     HintManager *hm = HintManager::GetInstance();
     if (!hm) {
         LOG(FATAL) << "HintManager Init failed";
+    }
+
+    // set task profile "PreferIdle" to lower scheduling latency.
+    if (!SetTaskProfiles(0, {"PreferIdleSet"})) {
+        LOG(WARNING) << "Device does not support 'PreferIdleSet' task profile.";
     }
 
     // single thread
