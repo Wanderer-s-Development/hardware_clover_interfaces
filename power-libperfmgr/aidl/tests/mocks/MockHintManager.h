@@ -45,6 +45,7 @@ class MockHintManager {
     MOCK_METHOD(bool, SetAdpfProfileFromDoHint, (const std::string &profile_name), ());
     MOCK_METHOD(std::shared_ptr<::android::perfmgr::AdpfConfig>, GetAdpfProfileFromDoHint, (),
                 (const));
+    MOCK_METHOD(::android::perfmgr::OtherConfigs, GetOtherConfigs, (), (const));
 
     static testing::NiceMock<MockHintManager> *GetInstance() {
         static testing::NiceMock<MockHintManager> instance{};

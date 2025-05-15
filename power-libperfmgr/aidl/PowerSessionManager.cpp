@@ -44,7 +44,7 @@ constexpr int32_t kBGRampupVal = 1;
 // The frame number threshold to decide whether upload a metric session.
 // It's intended to avoid uploading the metric session with just few frames.
 static constexpr int32_t kNumOfFramesThreshold = 20;
-static constexpr int32_t kMaxNumOfCachedSessionMetrics = 100;
+
 namespace {
 /* there is no glibc or bionic wrapper */
 struct sched_attr {
