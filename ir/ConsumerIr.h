@@ -20,6 +20,10 @@ class ConsumerIr : public BnConsumerIr {
             override;
     ::ndk::ScopedAStatus transmit(int32_t carrierFreqHz,
                                   const ::std::vector<int32_t>& pattern) override;
+
+  private:
+    std::vector<ConsumerIrFreqRange> kRangeVec;
+    bool isInRange(int32_t carrierFreqHz);
 };
 
 }  // namespace ir

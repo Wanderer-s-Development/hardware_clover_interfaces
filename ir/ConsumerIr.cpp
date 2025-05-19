@@ -24,17 +24,6 @@ namespace ir {
 
 static const std::string kIrDevice = "/dev/lirc0";
 
-static std::vector<ConsumerIrFreqRange> kRangeVec;
-
-bool isInRange(int32_t carrierFreqHz) {
-    for (const auto& range : kRangeVec) {
-        if (carrierFreqHz >= range.minHz && carrierFreqHz <= range.maxHz) {
-            return true;
-        }
-    }
-    return false;
-}
-
 ConsumerIr::ConsumerIr() {
     auto carrier_freqs = IrProperties::carrier_freqs();
 
@@ -101,6 +90,15 @@ ConsumerIr::ConsumerIr() {
     }
 
     return ::ndk::ScopedAStatus::ok();
+}
+
+bool ConsumerIr::isInRange(int32_t carrierFreqHz) {
+    for (const auto& range : kRangeVec) {
+        if (carrierFreqHz >= range.minHz && carrierFreqHz <= range.maxHz) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace ir
