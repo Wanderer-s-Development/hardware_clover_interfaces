@@ -71,6 +71,9 @@ class SessionTaskMap {
     // Return true if any app session is active, false otherwise
     bool isAnyAppSessionActive(std::chrono::steady_clock::time_point timePoint) const;
 
+    // Return true if all sessions are timeout, false otherwise
+    bool areAllSessionsTimeout(std::chrono::steady_clock::time_point timePoint) const;
+
     // Remove a session based on session id
     bool remove(int64_t sessionId);
 

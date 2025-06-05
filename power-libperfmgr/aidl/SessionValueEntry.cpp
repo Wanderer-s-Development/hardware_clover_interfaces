@@ -37,6 +37,7 @@ std::ostream &SessionValueEntry::dump(std::ostream &os) const {
         os << ", votes nullptr";
     }
     os << ", " << isActive;
+    os << ", " << votes->allTimedOut(timeNow);
     auto totalFrames = hBoostModeDist.lightModeFrames + hBoostModeDist.moderateModeFrames +
                        hBoostModeDist.severeModeFrames;
     os << ", HBoost:"

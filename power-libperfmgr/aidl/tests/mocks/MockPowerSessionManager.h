@@ -80,6 +80,7 @@ class MockPowerSessionManager {
                  int32_t defaultRampupVal, int32_t highRampupVal),
                 ());
     MOCK_METHOD(void, updateCollectedSessionMetrics, (int64_t sessionId), ());
+    MOCK_METHOD(bool, areAllSessionsTimeout, (), ());
 
     static testing::NiceMock<MockPowerSessionManager> *getInstance() {
         static testing::NiceMock<MockPowerSessionManager> instance{};

@@ -150,6 +150,15 @@ bool SessionTaskMap::isAnyAppSessionActive(std::chrono::steady_clock::time_point
     return false;
 }
 
+bool SessionTaskMap::areAllSessionsTimeout(std::chrono::steady_clock::time_point timePoint) const {
+    for (auto &sessionVal : mSessions) {
+        if (!sessionVal.second.val->votes->allTimedOut(timePoint)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool SessionTaskMap::remove(int64_t sessionId) {
     auto sessItr = mSessions.find(sessionId);
     if (sessItr == mSessions.end()) {

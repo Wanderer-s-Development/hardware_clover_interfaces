@@ -60,6 +60,8 @@ static inline int64_t ns_to_100us(int64_t ns) {
 }
 
 static constexpr int32_t kTargetDurationChangeThreshold = 30;  // Percentage change threshold
+static const char kHINTNAME_APP_FIRST_FRAME[] = "PER_ADPF_SESSION_FIRST_FRAME";
+static const char kHINTNAME_SYS_FIRST_FRAME[] = "ALL_ADPF_SESSIONS_FIRST_FRAME";
 
 }  // namespace
 
@@ -228,12 +230,18 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updatePidControlVaria
 }
 
 template <class HintManagerT, class PowerSessionManagerT>
-void PowerHintSession<HintManagerT, PowerSessionManagerT>::tryToSendPowerHint(
-        std::string hint, std::optional<std::chrono::milliseconds> duration) {
+bool PowerHintSession<HintManagerT, PowerSessionManagerT>::hintSupported(
+        const std::string &hint) const {
     if (!mSupportedHints[hint].has_value()) {
         mSupportedHints[hint] = HintManagerT::GetInstance()->IsHintSupported(hint);
     }
-    if (mSupportedHints[hint].value()) {
+    return mSupportedHints[hint].value();
+}
+
+template <class HintManagerT, class PowerSessionManagerT>
+void PowerHintSession<HintManagerT, PowerSessionManagerT>::tryToSendPowerHint(
+        std::string hint, std::optional<std::chrono::milliseconds> duration) {
+    if (hintSupported(hint)) {
         if (duration) {
             HintManagerT::GetInstance()->DoHint(hint, *duration);
         } else {
@@ -549,6 +557,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::reportA
 template <class HintManagerT, class PowerSessionManagerT>
 ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::sendHint(
         SessionHint hint) {
+    std::string hint_name = toString(hint);
     {
         std::scoped_lock lock{mPowerHintSessionLock};
         if (mSessionClosed) {
@@ -572,6 +581,13 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::sendHin
                 updatePidControlVariable(adpfConfig->mUclampMinLow);
                 break;
             case SessionHint::CPU_LOAD_RESET:
+                if (isTimeout() && hintSupported(kHINTNAME_APP_FIRST_FRAME)) {
+                    hint_name = kHINTNAME_APP_FIRST_FRAME;
+                    if (hintSupported(kHINTNAME_SYS_FIRST_FRAME) &&
+                        mPSManager->areAllSessionsTimeout()) {
+                        hint_name = kHINTNAME_SYS_FIRST_FRAME;
+                    }
+                }
                 updatePidControlVariable(
                         std::max(adpfConfig->mUclampMinInit,
                                  static_cast<uint32_t>(mDescriptor->pidControlVariable)),
@@ -617,7 +633,7 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::sendHin
     }
     // Don't hold a lock (mPowerHintSession) while DoHint will try to take another
     // lock(NodeLooperThread).
-    tryToSendPowerHint(toString(hint), {});
+    tryToSendPowerHint(hint_name, {});
 
     // TODO(kevindubois): b/411417175 Remove this hint in favor of capacity voting around
     // GPU_LOAD_UP after all pixel devices support this node.

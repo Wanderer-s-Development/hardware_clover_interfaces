@@ -80,6 +80,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     bool isAppSession() REQUIRES(mPowerHintSessionLock);
     // Try to send the named hint, optionally, with a override duration. If no duration is set,
     // the hint's default duration applies.
+    bool hintSupported(const std::string &hint) const;
     void tryToSendPowerHint(std::string hint, std::optional<std::chrono::milliseconds> duration);
     void updatePidControlVariable(int pidControlVariable, bool updateVote = true)
             REQUIRES(mPowerHintSessionLock);
@@ -109,7 +110,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     time_point<steady_clock> mLastUpdatedTime GUARDED_BY(mPowerHintSessionLock);
     bool mSessionClosed GUARDED_BY(mPowerHintSessionLock) = false;
     // Are cpu load change related hints are supported
-    std::unordered_map<std::string, std::optional<bool>> mSupportedHints;
+    std::unordered_map<std::string, std::optional<bool>> mutable mSupportedHints;
     // Use the value of the last enum in enum_range +1 as array size
     std::array<bool, enum_size<SessionMode>()> mModes GUARDED_BY(mPowerHintSessionLock){};
     std::shared_ptr<AdpfConfig> mAdpfProfile;

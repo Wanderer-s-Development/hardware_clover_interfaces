@@ -217,7 +217,7 @@ void PowerSessionManager<HintManagerT>::setThreadsFromPowerSession(
 }
 
 template <class HintManagerT>
-std::optional<bool> PowerSessionManager<HintManagerT>::isAnyAppSessionActive() {
+bool PowerSessionManager<HintManagerT>::isAnyAppSessionActive() {
     bool isAnyAppSessionActive = false;
     {
         std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
@@ -225,6 +225,16 @@ std::optional<bool> PowerSessionManager<HintManagerT>::isAnyAppSessionActive() {
                 mSessionTaskMap.isAnyAppSessionActive(std::chrono::steady_clock::now());
     }
     return isAnyAppSessionActive;
+}
+
+template <class HintManagerT>
+bool PowerSessionManager<HintManagerT>::areAllSessionsTimeout() {
+    bool areAllTimeout = false;
+    {
+        std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
+        areAllTimeout = mSessionTaskMap.areAllSessionsTimeout(std::chrono::steady_clock::now());
+    }
+    return areAllTimeout;
 }
 
 template <class HintManagerT>

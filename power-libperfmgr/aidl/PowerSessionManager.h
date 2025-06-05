@@ -97,9 +97,10 @@ class PowerSessionManager : public Immobile {
     std::shared_ptr<void> getSession(int64_t sessionId);
     bool getGameModeEnableState();
     bool updateCollectedSessionMetrics(int64_t sessionId);
+    bool areAllSessionsTimeout();
 
   private:
-    std::optional<bool> isAnyAppSessionActive();
+    bool isAnyAppSessionActive();
     const std::string kDisableBoostHintName;
 
     // Rewrite specific
