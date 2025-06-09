@@ -43,6 +43,7 @@ cc_binary {
         "libgmock",
         "libgtest",
         "libpixelstats",
+        "powerhal_flags-aconfig-cc",
     ],
     whole_static_libs: select(soong_config_variable("power_libperfmgr", "mode_extension_lib"), {
         any @ flag_val: [flag_val],
