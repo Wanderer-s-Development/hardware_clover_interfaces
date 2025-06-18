@@ -191,7 +191,11 @@ void ChannelGroup<PowerSessionManagerT, PowerHintSessionT>::runChannelGroup() {
                                         .workPeriodStartTimestampNanos =
                                                 durationData.workPeriodStartTimestampNanos});
                             }
-                            sessionPtr->reportActualWorkDuration(durations);
+                            if (!durations.empty()) {
+                                sessionPtr->reportActualWorkDuration(durations);
+                                // Decrement the message index so we don't skip the next item
+                                --messageIndex;
+                            }
                             break;
                         }
                         case Tag::mode: {
