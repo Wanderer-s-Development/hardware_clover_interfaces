@@ -158,7 +158,7 @@ void PowerSessionManager<HintManagerT>::removePowerSession(int64_t sessionId) {
 
     std::vector<pid_t> addedThreads;
     std::vector<pid_t> removedThreads;
-    std::string profile = getSessionTaskProfile(sessionId, false);
+    std::vector<std::string> profiles = getSessionTaskProfiles(sessionId, false);
 
     {
         // Wait till end to remove session because it needs to be around for apply U clamp
@@ -181,8 +181,8 @@ void PowerSessionManager<HintManagerT>::removePowerSession(int64_t sessionId) {
     }
 
     for (auto tid : removedThreads) {
-        if (!SetTaskProfiles(tid, {profile})) {
-            ALOGE("Failed to set %s task profile for tid:%d", profile.c_str(), tid);
+        if (!SetTaskProfiles(tid, profiles)) {
+            ALOGE("Failed to remove task profiles for tid:%d", tid);
         }
     }
 
@@ -195,22 +195,21 @@ void PowerSessionManager<HintManagerT>::setThreadsFromPowerSession(
     std::vector<pid_t> addedThreads;
     std::vector<pid_t> removedThreads;
     forceSessionActive(sessionId, false);
-    std::string profile;
     {
         std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
         mSessionTaskMap.replace(sessionId, threadIds, &addedThreads, &removedThreads);
     }
 
-    profile = getSessionTaskProfile(sessionId, true);
+    auto profiles = getSessionTaskProfiles(sessionId, true);
     for (auto tid : addedThreads) {
-        if (!SetTaskProfiles(tid, {profile})) {
-            ALOGE("Failed to set %s task profile for tid:%d", profile.c_str(), tid);
+        if (!SetTaskProfiles(tid, profiles)) {
+            ALOGE("Failed to set task profiles for tid:%d", tid);
         }
     }
-    profile = getSessionTaskProfile(sessionId, false);
+    profiles = getSessionTaskProfiles(sessionId, false);
     for (auto tid : removedThreads) {
-        if (!SetTaskProfiles(tid, {profile})) {
-            ALOGE("Failed to set %s task profile for tid:%d", profile.c_str(), tid);
+        if (!SetTaskProfiles(tid, profiles)) {
+            ALOGE("Failed to remove task profiles for tid:%d", tid);
         }
     }
     forceSessionActive(sessionId, true);
@@ -692,26 +691,29 @@ void PowerSessionManager<HintManagerT>::updateHboostStatistics(int64_t sessionId
 }
 
 template <class HintManagerT>
-std::string PowerSessionManager<HintManagerT>::getSessionTaskProfile(int64_t sessionId,
+std::vector<std::string> PowerSessionManager<HintManagerT>::getSessionTaskProfiles(int64_t sessionId,
                                                                      bool isSetProfile) const {
     auto sessValPtr = mSessionTaskMap.findSession(sessionId);
     if (isSetProfile) {
         if (nullptr == sessValPtr) {
-            return "SCHED_QOS_SENSITIVE_STANDARD";
+            return {"SCHED_QOS_SENSITIVE_STANDARD"};
         }
         if (sessValPtr->procTag == ProcessTag::SYSTEM_UI) {
-            return "SCHED_QOS_SENSITIVE_EXTREME";
+            return {"SCHED_QOS_SENSITIVE_EXTREME"};
         } else {
             switch (sessValPtr->tag) {
                 case SessionTag::SURFACEFLINGER:
+                    if (HintManagerT::GetInstance()->GetOtherConfigs().enableSFPreferHighCap)
+                      return {"SCHED_QOS_SENSITIVE_EXTREME", "PreferHighCapSet"};
+                    return {"SCHED_QOS_SENSITIVE_EXTREME"};
                 case SessionTag::HWUI:
-                    return "SCHED_QOS_SENSITIVE_EXTREME";
+                    return {"SCHED_QOS_SENSITIVE_EXTREME"};
                 default:
-                    return "SCHED_QOS_SENSITIVE_STANDARD";
+                    return {"SCHED_QOS_SENSITIVE_STANDARD"};
             }
         }
     } else {
-        return "SCHED_QOS_NONE";
+        return {"SCHED_QOS_NONE"};
     }
 }
 

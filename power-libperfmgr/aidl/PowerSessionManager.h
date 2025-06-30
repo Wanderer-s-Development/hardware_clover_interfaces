@@ -127,7 +127,7 @@ class PowerSessionManager : public Immobile {
     void applyCpuAndGpuVotes(int64_t sessionId, std::chrono::steady_clock::time_point timePoint);
     // Force a session active or in-active, helper for other methods
     void forceSessionActive(int64_t sessionId, bool isActive);
-    std::string getSessionTaskProfile(int64_t sessionId, bool isSetProfile) const;
+    std::vector<std::string> getSessionTaskProfiles(int64_t sessionId, bool isSetProfile) const;
     void voteRampupBoostLocked(int64_t sessionId, bool rampupBoostVote, int32_t defaultRampupVal,
                                int32_t highRampupVal);
 
