@@ -225,6 +225,10 @@ void SessionRecords::updateGameMetrics(int32_t frameIntervalUs, GameFrameMetrics
     gameMetrics.numOfFrames++;
 }
 
+bool SessionRecords::areAllRecordsInitialized() const {
+    return mNumOfFrames >= kMaxNumOfRecords;
+}
+
 }  // namespace pixel
 }  // namespace impl
 }  // namespace power

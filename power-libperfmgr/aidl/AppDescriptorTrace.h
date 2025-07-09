@@ -69,6 +69,8 @@ struct AppDescriptorTrace {
         trace_hboost_pid_pu = StringPrintf("adpf.%s-%s", idString.c_str(), "hboost.uclampPidPu");
         trace_rampup_boost_active =
                 StringPrintf("adpf.%s-%s", idString.c_str(), "hboost.rampupBoostActive");
+        trace_initial_severe_active =
+                StringPrintf("adpf.%s-%s", idString.c_str(), "hboost.initialSevereActive");
 
         for (size_t i = 0; i < trace_modes.size(); ++i) {
             trace_modes[i] = StringPrintf(
@@ -113,6 +115,7 @@ struct AppDescriptorTrace {
     std::string trace_rampup_boost_active;
     std::string trace_uclamp_min_ceiling;
     std::string trace_uclamp_min_floor;
+    std::string trace_initial_severe_active;
 
     std::array<std::string, enum_size<aidl::android::hardware::power::SessionMode>()> trace_modes;
     std::array<std::string, static_cast<int32_t>(AdpfVoteType::VOTE_TYPE_SIZE)> trace_votes;

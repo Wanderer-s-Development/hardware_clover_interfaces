@@ -58,6 +58,7 @@ class SessionRecords {
     // calling addReportedDurations. It's mainly for game mode FPS monitoring.
     int32_t getLatestFPS() const;
     int32_t getNumOfFPSJitters() const;
+    bool areAllRecordsInitialized() const;
 
   private:
     void updateFrameBuckets(int32_t frameDurationUs, bool isJankFrame,

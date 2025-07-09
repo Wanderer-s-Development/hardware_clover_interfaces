@@ -24,6 +24,7 @@
 #include <android-base/parsedouble.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
+#include <powerhal_flags.h>
 #include <private/android_filesystem_config.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -195,6 +196,8 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
 
     mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_VOTE_DEFAULT, adpfConfig->mUclampMinInit,
                         kUclampMax, std::chrono::steady_clock::now(), mDescriptor->targetNs);
+    mJankyLevel = powerhal::flags::initial_hboost_severe() ? SessionJankyLevel::SEVERE
+                                                           : SessionJankyLevel::LIGHT;
     ALOGV("PowerHintSession created: %s", mDescriptor->toString().c_str());
 }
 
@@ -353,10 +356,12 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::updateT
 template <class HintManagerT, class PowerSessionManagerT>
 void PowerHintSession<HintManagerT, PowerSessionManagerT>::resetSessionHeuristicStates() {
     mSessionRecords->resetRecords();
-    mJankyLevel = SessionJankyLevel::LIGHT;
+    bool enableInitialSevere = powerhal::flags::initial_hboost_severe();
+    mJankyLevel = enableInitialSevere ? SessionJankyLevel::SEVERE : SessionJankyLevel::LIGHT;
     mJankyFrameNum = 0;
     ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
                static_cast<int32_t>(mJankyLevel));
+    ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(), enableInitialSevere);
     ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), 0);
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), 0);
@@ -365,12 +370,14 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::resetSessionHeuristic
 
 template <class HintManagerT, class PowerSessionManagerT>
 SessionJankyLevel PowerHintSession<HintManagerT, PowerSessionManagerT>::updateSessionJankState(
-        SessionJankyLevel oldState, int32_t numOfJankFrames, double durationVariance,
-        bool isLowFPS) {
+        SessionJankyLevel oldState, int32_t numOfJankFrames, double durationVariance, bool isLowFPS,
+        bool areAllRecordsInitialized) {
     SessionJankyLevel newState = SessionJankyLevel::LIGHT;
     if (isLowFPS) {
-        newState = SessionJankyLevel::LIGHT;
-        return newState;
+        return SessionJankyLevel::LIGHT;
+    }
+    if (powerhal::flags::initial_hboost_severe() && !areAllRecordsInitialized) {
+        return SessionJankyLevel::SEVERE;
     }
 
     auto adpfConfig = getAdpfProfile();
@@ -395,6 +402,7 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost(
     auto maxDurationUs = mSessionRecords->getMaxDuration();  // micro seconds
     auto avgDurationUs = mSessionRecords->getAvgDuration();  // micro seconds
     auto numOfJankFrames = mSessionRecords->getNumOfMissedCycles();
+    auto areAllRecordsInitialized = mSessionRecords->areAllRecordsInitialized();
 
     if (!maxDurationUs.has_value() || !avgDurationUs.has_value() || avgDurationUs.value() <= 0) {
         // No history data stored or invalid average duration.
@@ -405,11 +413,14 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost(
     auto isLowFPS =
             mSessionRecords->isLowFrameRate(getAdpfProfile()->mLowFrameRateThreshold.value());
 
-    mJankyLevel = updateSessionJankState(mJankyLevel, numOfJankFrames, maxToAvgRatio, isLowFPS);
+    mJankyLevel = updateSessionJankState(mJankyLevel, numOfJankFrames, maxToAvgRatio, isLowFPS,
+                                         areAllRecordsInitialized);
     mJankyFrameNum = numOfJankFrames;
 
     ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
                static_cast<int32_t>(mJankyLevel));
+    ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(),
+               powerhal::flags::initial_hboost_severe() && !areAllRecordsInitialized);
     ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), avgDurationUs.value());
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), maxDurationUs.value());

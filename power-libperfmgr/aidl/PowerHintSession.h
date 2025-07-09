@@ -87,7 +87,8 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     int64_t convertWorkDurationToBoostByPid(const std::vector<WorkDuration> &actualDurations)
             REQUIRES(mPowerHintSessionLock);
     SessionJankyLevel updateSessionJankState(SessionJankyLevel oldState, int32_t numOfJankFrames,
-                                             double durationVariance, bool isLowFPS)
+                                             double durationVariance, bool isLowFPS,
+                                             bool areAllRecordsInitialized)
             REQUIRES(mPowerHintSessionLock);
     void updateHeuristicBoost() REQUIRES(mPowerHintSessionLock);
     void resetSessionHeuristicStates() REQUIRES(mPowerHintSessionLock);
@@ -118,7 +119,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     std::function<void(const std::shared_ptr<AdpfConfig>)> mOnAdpfUpdate;
     std::unique_ptr<SessionRecords> mSessionRecords GUARDED_BY(mPowerHintSessionLock) = nullptr;
     bool mHeuristicBoostActive GUARDED_BY(mPowerHintSessionLock){false};
-    SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::LIGHT};
+    SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::SEVERE};
     uint32_t mJankyFrameNum GUARDED_BY(mPowerHintSessionLock){0};
 };
 
