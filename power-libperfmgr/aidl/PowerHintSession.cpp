@@ -173,7 +173,9 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
                               ? std::make_unique<SessionRecords>(
                                         getAdpfProfile()->mMaxRecordsNum.value(),
                                         getAdpfProfile()->mJankCheckTimeFactor.value())
-                              : nullptr) {
+                              : nullptr),
+      mEnableHigherInitialHeuristicBoost(powerhal::flags::initial_hboost_severe() &&
+                                         mProcTag != ProcessTag::SYSTEM_UI) {
     ATRACE_CALL();
     ATRACE_INT(mAppDescriptorTrace->trace_target.c_str(), mDescriptor->targetNs.count());
     ATRACE_INT(mAppDescriptorTrace->trace_active.c_str(), mDescriptor->is_active.load());
@@ -196,8 +198,8 @@ PowerHintSession<HintManagerT, PowerSessionManagerT>::PowerHintSession(
 
     mPSManager->voteSet(mSessionId, AdpfVoteType::CPU_VOTE_DEFAULT, adpfConfig->mUclampMinInit,
                         kUclampMax, std::chrono::steady_clock::now(), mDescriptor->targetNs);
-    mJankyLevel = powerhal::flags::initial_hboost_severe() ? SessionJankyLevel::SEVERE
-                                                           : SessionJankyLevel::LIGHT;
+    mJankyLevel = mEnableHigherInitialHeuristicBoost ? SessionJankyLevel::SEVERE
+                                                     : SessionJankyLevel::LIGHT;
     ALOGV("PowerHintSession created: %s", mDescriptor->toString().c_str());
 }
 
@@ -356,12 +358,13 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::updateT
 template <class HintManagerT, class PowerSessionManagerT>
 void PowerHintSession<HintManagerT, PowerSessionManagerT>::resetSessionHeuristicStates() {
     mSessionRecords->resetRecords();
-    bool enableInitialSevere = powerhal::flags::initial_hboost_severe();
-    mJankyLevel = enableInitialSevere ? SessionJankyLevel::SEVERE : SessionJankyLevel::LIGHT;
+    mJankyLevel = mEnableHigherInitialHeuristicBoost ? SessionJankyLevel::SEVERE
+                                                     : SessionJankyLevel::LIGHT;
     mJankyFrameNum = 0;
     ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
                static_cast<int32_t>(mJankyLevel));
-    ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(), enableInitialSevere);
+    ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(),
+               mEnableHigherInitialHeuristicBoost);
     ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), 0);
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), 0);
@@ -376,7 +379,7 @@ SessionJankyLevel PowerHintSession<HintManagerT, PowerSessionManagerT>::updateSe
     if (isLowFPS) {
         return SessionJankyLevel::LIGHT;
     }
-    if (powerhal::flags::initial_hboost_severe() && !areAllRecordsInitialized) {
+    if (mEnableHigherInitialHeuristicBoost && !areAllRecordsInitialized) {
         return SessionJankyLevel::SEVERE;
     }
 
@@ -420,7 +423,7 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost(
     ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
                static_cast<int32_t>(mJankyLevel));
     ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(),
-               powerhal::flags::initial_hboost_severe() && !areAllRecordsInitialized);
+               mEnableHigherInitialHeuristicBoost && !areAllRecordsInitialized);
     ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), avgDurationUs.value());
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), maxDurationUs.value());

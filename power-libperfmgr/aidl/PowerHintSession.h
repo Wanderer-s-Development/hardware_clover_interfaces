@@ -121,6 +121,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     bool mHeuristicBoostActive GUARDED_BY(mPowerHintSessionLock){false};
     SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::SEVERE};
     uint32_t mJankyFrameNum GUARDED_BY(mPowerHintSessionLock){0};
+    const bool mEnableHigherInitialHeuristicBoost;
 };
 
 }  // namespace pixel
