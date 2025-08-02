@@ -358,13 +358,18 @@ ndk::ScopedAStatus PowerHintSession<HintManagerT, PowerSessionManagerT>::updateT
 template <class HintManagerT, class PowerSessionManagerT>
 void PowerHintSession<HintManagerT, PowerSessionManagerT>::resetSessionHeuristicStates() {
     mSessionRecords->resetRecords();
-    mJankyLevel = mEnableHigherInitialHeuristicBoost ? SessionJankyLevel::SEVERE
-                                                     : SessionJankyLevel::LIGHT;
+
+    /* If this reset occurred before any work durations were provided, don't count it as a reset for
+    purposes of turning off the initial higher heuristic boost. */
+    if (mDescriptor->update_count > 0) {
+        mJankyLevel = SessionJankyLevel::LIGHT;
+        mHasHeuristicBoostBeenReset = true;
+    }
     mJankyFrameNum = 0;
     ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
                static_cast<int32_t>(mJankyLevel));
     ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(),
-               mEnableHigherInitialHeuristicBoost);
+               mEnableHigherInitialHeuristicBoost && !mHasHeuristicBoostBeenReset);
     ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), 0);
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), 0);
@@ -374,12 +379,12 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::resetSessionHeuristic
 template <class HintManagerT, class PowerSessionManagerT>
 SessionJankyLevel PowerHintSession<HintManagerT, PowerSessionManagerT>::updateSessionJankState(
         SessionJankyLevel oldState, int32_t numOfJankFrames, double durationVariance, bool isLowFPS,
-        bool areAllRecordsInitialized) {
+        bool forceSevere) {
     SessionJankyLevel newState = SessionJankyLevel::LIGHT;
     if (isLowFPS) {
         return SessionJankyLevel::LIGHT;
     }
-    if (mEnableHigherInitialHeuristicBoost && !areAllRecordsInitialized) {
+    if (forceSevere) {
         return SessionJankyLevel::SEVERE;
     }
 
@@ -415,15 +420,16 @@ void PowerHintSession<HintManagerT, PowerSessionManagerT>::updateHeuristicBoost(
     auto maxToAvgRatio = maxDurationUs.value() * 1.0 / avgDurationUs.value();
     auto isLowFPS =
             mSessionRecords->isLowFrameRate(getAdpfProfile()->mLowFrameRateThreshold.value());
+    auto forceSevere = mEnableHigherInitialHeuristicBoost && !areAllRecordsInitialized &&
+                       !mHasHeuristicBoostBeenReset;
 
     mJankyLevel = updateSessionJankState(mJankyLevel, numOfJankFrames, maxToAvgRatio, isLowFPS,
-                                         areAllRecordsInitialized);
+                                         forceSevere);
     mJankyFrameNum = numOfJankFrames;
 
     ATRACE_INT(mAppDescriptorTrace->trace_hboost_janky_level.c_str(),
                static_cast<int32_t>(mJankyLevel));
-    ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(),
-               mEnableHigherInitialHeuristicBoost && !areAllRecordsInitialized);
+    ATRACE_INT(mAppDescriptorTrace->trace_initial_severe_active.c_str(), forceSevere);
     ATRACE_INT(mAppDescriptorTrace->trace_missed_cycles.c_str(), mJankyFrameNum);
     ATRACE_INT(mAppDescriptorTrace->trace_avg_duration.c_str(), avgDurationUs.value());
     ATRACE_INT(mAppDescriptorTrace->trace_max_duration.c_str(), maxDurationUs.value());

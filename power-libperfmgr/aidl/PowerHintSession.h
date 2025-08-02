@@ -88,8 +88,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
             REQUIRES(mPowerHintSessionLock);
     SessionJankyLevel updateSessionJankState(SessionJankyLevel oldState, int32_t numOfJankFrames,
                                              double durationVariance, bool isLowFPS,
-                                             bool areAllRecordsInitialized)
-            REQUIRES(mPowerHintSessionLock);
+                                             bool forceSevere) REQUIRES(mPowerHintSessionLock);
     void updateHeuristicBoost() REQUIRES(mPowerHintSessionLock);
     void resetSessionHeuristicStates() REQUIRES(mPowerHintSessionLock);
     const std::shared_ptr<AdpfConfig> getAdpfProfile() const;
@@ -122,6 +121,7 @@ class PowerHintSession : public BnPowerHintSession, public Immobile {
     SessionJankyLevel mJankyLevel GUARDED_BY(mPowerHintSessionLock){SessionJankyLevel::SEVERE};
     uint32_t mJankyFrameNum GUARDED_BY(mPowerHintSessionLock){0};
     const bool mEnableHigherInitialHeuristicBoost;
+    bool mHasHeuristicBoostBeenReset GUARDED_BY(mPowerHintSessionLock){false};
 };
 
 }  // namespace pixel
