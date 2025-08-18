@@ -21,6 +21,7 @@
 
 #include <android-base/file.h>
 #include <log/log.h>
+#include <powerhal_flags.h>
 #include <private/android_filesystem_config.h>
 #include <processgroup/processgroup.h>
 #include <sys/syscall.h>
@@ -703,8 +704,9 @@ std::vector<std::string> PowerSessionManager<HintManagerT>::getSessionTaskProfil
         } else {
             switch (sessValPtr->tag) {
                 case SessionTag::SURFACEFLINGER:
-                    if (HintManagerT::GetInstance()->GetOtherConfigs().enableSFPreferHighCap)
-                      return {"SCHED_QOS_SENSITIVE_EXTREME", "PreferHighCapSet"};
+                    if (HintManagerT::GetInstance()->GetOtherConfigs().enableSFPreferHighCap &&
+                        !powerhal::flags::ramp_down_sf_prefer_high_cap())
+                        return {"SCHED_QOS_SENSITIVE_EXTREME", "PreferHighCapSet"};
                     return {"SCHED_QOS_SENSITIVE_EXTREME"};
                 case SessionTag::HWUI:
                     return {"SCHED_QOS_SENSITIVE_EXTREME"};
