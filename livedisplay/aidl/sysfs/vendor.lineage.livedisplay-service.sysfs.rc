@@ -1,4 +1,4 @@
-on early-boot
+on init
     # LiveDisplay sysfs
     chown system system /sys/devices/platform/soc/soc:qcom,dsi-display-primary/cabc
     chown system system /sys/devices/platform/soc/soc:qcom,dsi-display-primary/dc
