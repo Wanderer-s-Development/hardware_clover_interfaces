@@ -28,7 +28,6 @@ SunlightEnhancement::SunlightEnhancement()
                   SE_PATH,
 #else
                   "/sys/class/graphics/fb0/hbm",
-                  "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/dsi_display_hbm",
                   "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/hbm",
 #endif
           };
