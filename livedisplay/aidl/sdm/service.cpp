@@ -31,6 +31,12 @@ int main() {
         std::string instance = std::string() + DisplayModes::descriptor + "/default";
         binder_status_t status = AServiceManager_addService(dm->asBinder().get(), instance.c_str());
         CHECK_EQ(status, STATUS_OK);
+
+        if (pa) {
+            // Update default PA on setDisplayMode
+            dm->registerDisplayModeSetCallback(
+                    std::bind(&PictureAdjustment::updateDefaultPictureAdjustment, pa));
+        }
     }
 
     if (pa) {
