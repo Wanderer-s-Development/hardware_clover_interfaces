@@ -3,11 +3,11 @@
 source $ANDROID_BUILD_TOP/system/tools/hidl/update-makefiles-helper.sh
 
 do_makefiles_update \
-  "vendor.lineage:hardware/lineage/interfaces" \
+  "vendor.lineage:hardware/clover/interfaces" \
   "android.hardware:hardware/interfaces" \
   "android.hidl:system/libhidl/transport"
 
 do_makefiles_update \
-  "lineage.hardware:hardware/lineage/interfaces/_backend" \
+  "lineage.hardware:hardware/clover/interfaces/_backend" \
   "android.hardware:hardware/interfaces" \
   "android.hidl:system/libhidl/transport"
