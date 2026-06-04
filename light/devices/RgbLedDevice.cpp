@@ -11,6 +11,8 @@
 
 #include <android-base/logging.h>
 
+#include <algorithm>
+
 namespace aidl {
 namespace android {
 namespace hardware {
@@ -91,9 +93,17 @@ bool RgbLedDevice::setState(const State& state) {
     }
 
     if (mRoles == Role::ALL) {
-        rc &= mRed.setBrightness(state.color.red, mode, flashOnMs, flashOffMs);
-        rc &= mGreen.setBrightness(state.color.green, mode, flashOnMs, flashOffMs);
-        rc &= mBlue.setBrightness(state.color.blue, mode, flashOnMs, flashOffMs);
+        Color color = state.color;
+#ifdef SNAP_RGB_TO_PURE
+        if (uint8_t mx = std::max({color.red, color.green, color.blue})) {
+            color.red = color.red * 2 >= mx ? 0xFF : 0;
+            color.green = color.green * 2 >= mx ? 0xFF : 0;
+            color.blue = color.blue * 2 >= mx ? 0xFF : 0;
+        }
+#endif
+        rc &= mRed.setBrightness(color.red, mode, flashOnMs, flashOffMs);
+        rc &= mGreen.setBrightness(color.green, mode, flashOnMs, flashOffMs);
+        rc &= mBlue.setBrightness(color.blue, mode, flashOnMs, flashOffMs);
     } else {
         // Check if we have only one LED
         if (mRoles == Role::RED) {
